@@ -15,66 +15,66 @@ const program = [
   {
     name: "Lower Body Strength",
     exercises: [
-      "Back Squat",
-      "Romanian Deadlift",
-      "Walking Lunges",
-      "Leg Press",
-      "Calf Raises"
+      { name:"Back Squat", sets:3, reps:10 },
+      { name:"Romanian Deadlift", sets:3, reps:10 },
+      { name:"Walking Lunges", sets:3, reps:12 },
+      { name:"Leg Press", sets:3, reps:10 },
+      { name:"Calf Raises", sets:4, reps:12 }
     ]
   },
   {
-    name: "Upper Pull + Core",
-    exercises: [
-      "Lat Pulldown",
-      "Seated Row",
-      "Face Pull",
-      "Rear Delt Fly",
-      "Biceps Curl"
+    name:"Upper Pull + Core",
+    exercises:[
+      { name:"Lat Pulldown", sets:3, reps:10 },
+      { name:"Seated Row", sets:3, reps:10 },
+      { name:"Face Pull", sets:3, reps:15 },
+      { name:"Rear Delt Fly", sets:3, reps:15 },
+      { name:"Biceps Curl", sets:3, reps:12 }
     ]
   },
   {
-    name: "Run + Glutes",
-    exercises: [
-      "Easy Run",
-      "Hip Thrust",
-      "Cable Kickbacks",
-      "Step Ups",
-      "Plank"
+    name:"Run + Glutes",
+    exercises:[
+      { name:"Hip Thrust", sets:4, reps:10 },
+      { name:"Cable Kickbacks", sets:3, reps:15 },
+      { name:"Step Ups", sets:3, reps:12 },
+      { name:"Plank", sets:3, reps:30 }
     ]
   },
   {
-    name: "Active Recovery",
-    exercises: [
-      "45–60 min walk / bike / mobility"
+    name:"Active Recovery",
+    exercises:[
+      { name:"45–60 min walk / mobility", sets:1, reps:1 }
     ]
   },
   {
-    name: "Lower Hypertrophy",
-    exercises: [
-      "Hack Squat",
-      "Bulgarian Split Squat",
-      "Leg Curl",
-      "Cable Pull Through",
-      "Calves"
+    name:"Lower Hypertrophy",
+    exercises:[
+      { name:"Hack Squat", sets:4, reps:12 },
+      { name:"Bulgarian Split Squat", sets:3, reps:10 },
+      { name:"Leg Curl", sets:4, reps:12 },
+      { name:"Cable Pull Through", sets:3, reps:15 },
+      { name:"Calves", sets:4, reps:15 }
     ]
   },
   {
-    name: "Shoulders + Upper Back",
-    exercises: [
-      "Machine Shoulder Press",
-      "Lateral Raises",
-      "Cable Y Raise",
-      "Assisted Pullups",
-      "Rope Rows"
+    name:"Shoulders + Upper Back",
+    exercises:[
+      { name:"Machine Shoulder Press", sets:3, reps:10 },
+      { name:"Lateral Raise", sets:4, reps:15 },
+      { name:"Cable Y Raise", sets:3, reps:15 },
+      { name:"Assisted Pullups", sets:3, reps:8 },
+      { name:"Rope Rows", sets:3, reps:12 }
     ]
   },
   {
-    name: "Long Easy Run",
-    exercises: [
-      "Comfortable 3–6 km Run"
+    name:"Long Easy Run",
+    exercises:[
+      { name:"Comfortable 3–6km Run", sets:1, reps:1 }
     ]
   }
 ];
+
 
 // --------------------------
 // NAVIGATION
