@@ -181,7 +181,16 @@ function renderToday(){
 
   day.exercises.forEach((ex, exIndex)=>{
 
-    html += `<h4>${ex.name} — ${ex.sets} x ${ex.reps}</h4>`;
+    const suggestion =
+  getSuggestion(dayIndex, exIndex, ex.reps);
+
+html += `
+  <h4>${ex.name} — ${ex.sets} x ${ex.reps}</h4>
+  <small style="color:#666;">
+    ${suggestion ? `Suggested next time: ${suggestion} kg` : ""}
+  </small>
+`;
+
 
     for(let s=1; s<=ex.sets; s++){
 
