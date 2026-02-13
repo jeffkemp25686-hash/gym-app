@@ -75,6 +75,42 @@ const program = [
     ]
   }
 ];
+function getSuggestion(dayIndex, exIndex, targetReps){
+
+  let totalWeight = 0;
+  let totalReps = 0;
+  let setsLogged = 0;
+
+  for(let s=1; s<=6; s++){
+
+    const w = parseFloat(
+      localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-w`)
+    );
+
+    const r = parseFloat(
+      localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-r`)
+    );
+
+    if(!isNaN(w) && !isNaN(r)){
+      totalWeight += w;
+      totalReps += r;
+      setsLogged++;
+    }
+  }
+
+  if(!setsLogged) return "";
+
+  const avgWeight = totalWeight / setsLogged;
+  const avgReps = totalReps / setsLogged;
+
+  let increase = 0;
+
+  if(avgReps >= targetReps) increase = 2.5;
+  else if(avgReps >= targetReps - 1) increase = 1.25;
+  else increase = 0;
+
+  return (avgWeight + increase).toFixed(1);
+}
 
 
 // --------------------------
