@@ -6,6 +6,7 @@
 const app = document.getElementById("app");
 
 const STORAGE_DAY = "currentTrainingDay";
+window.startRestTimer = startRestTimer;
 
 // --------------------------
 // PROGRAM STRUCTURE
@@ -113,7 +114,25 @@ function nextDay() {
 // TODAY TAB
 // --------------------------
 
-function renderToday() {
+function startRestTimer(btn){
+
+  let seconds = 60;
+  btn.disabled = true;
+
+  const interval = setInterval(()=>{
+    btn.innerText = `Rest ${seconds}s`;
+    seconds--;
+
+    if(seconds < 0){
+      clearInterval(interval);
+      btn.innerText = "Start 60s Rest";
+      btn.disabled = false;
+    }
+  },1000);
+}
+
+
+function renderToday(){
 
   const dayIndex = getCurrentDay();
   const day = program[dayIndex];
@@ -124,37 +143,54 @@ function renderToday() {
       <h3>${day.name}</h3>
   `;
 
-  day.exercises.forEach((ex, i) => {
+  day.exercises.forEach((ex, exIndex)=>{
 
-    const keyW = `d${dayIndex}-e${i}-w`;
-    const keyR = `d${dayIndex}-e${i}-r`;
+    html += `<h4>${ex.name} — ${ex.sets} x ${ex.reps}</h4>`;
 
-    const weight = localStorage.getItem(keyW) || "";
-    const rpe = localStorage.getItem(keyR) || "";
+    for(let s=1; s<=ex.sets; s++){
 
-    html += `
-      <label>${ex}</label>
-      <input
-        placeholder="Weight"
-        value="${weight}"
-        oninput="localStorage.setItem('${keyW}', this.value)"
-      >
+      const weightKey=`d${dayIndex}-e${exIndex}-s${s}-w`;
+      const repsKey=`d${dayIndex}-e${exIndex}-s${s}-r`;
 
-      <input
-        placeholder="RPE"
-        value="${rpe}"
-        oninput="localStorage.setItem('${keyR}', this.value)"
-      >
+      const weight=localStorage.getItem(weightKey)||"";
+      const reps=localStorage.getItem(repsKey)||"";
+
+      html+=`
+        <div style="margin-bottom:8px;">
+          Set ${s}<br>
+
+          <input
+            placeholder="Weight"
+            value="${weight}"
+            oninput="localStorage.setItem('${weightKey}',this.value)"
+          >
+
+          <input
+            placeholder="Reps"
+            value="${reps}"
+            oninput="localStorage.setItem('${repsKey}',this.value)"
+          >
+        </div>
+      `;
+    }
+
+    html+=`
+      <button onclick="startRestTimer(this)">
+        Start 60s Rest
+      </button>
+      <hr>
     `;
   });
 
-  html += `
-      <button onclick="nextDay()">Finish Workout ✅</button>
+  html+=`
+    <button onclick="nextDay()">Finish Workout ✅</button>
+    <p style="color:green;">✓ Auto saved</p>
     </div>
   `;
 
   app.innerHTML = html;
 }
+
 
 // --------------------------
 // RUN TAB
