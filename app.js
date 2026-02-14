@@ -389,14 +389,104 @@ function renderRun() {
 
 
 
+function todayDateStr() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
 function renderNutrition() {
+  const date = localStorage.getItem("nutri_date") || todayDateStr();
+
+  // Load saved values for that date (so history works)
+  const key = (k) => `nutri_${date}_${k}`;
+
+  const protein = localStorage.getItem(key("protein")) || "No";
+  const water   = localStorage.getItem(key("water"))   || "No";
+  const veg     = localStorage.getItem(key("veg"))     || "No";
+  const energy  = localStorage.getItem(key("energy"))  || "";
+  const notes   = localStorage.getItem(key("notes"))   || "";
+
   app.innerHTML = `
     <div class="card">
-      <h2>Nutrition Check</h2>
-      <p>Coming next step</p>
+      <h2>Nutrition (Daily Check)</h2>
+
+      <label>Date</label>
+      <input id="nutriDate" type="date" value="${date}" />
+
+      <hr style="margin:12px 0;">
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="btnProtein" type="button"></button>
+        <button id="btnWater" type="button"></button>
+        <button id="btnVeg" type="button"></button>
+      </div>
+
+      <div style="margin-top:12px;">
+        <label>Energy (1–5)</label>
+        <input id="nutriEnergy" inputmode="numeric" placeholder="1–5" value="${energy}">
+      </div>
+
+      <div style="margin-top:8px;">
+        <label>Notes (optional)</label>
+        <input id="nutriNotes" placeholder="Hunger/sleep/stress etc" value="${notes}">
+      </div>
+
+      <div style="margin-top:12px;">
+        <button onclick="syncNutrition()">Sync Nutrition to Coach 🍎</button>
+        <p id="nutriSyncStatus" style="color:#666;"></p>
+      </div>
+
+      <p style="color:green;">✓ Auto saved</p>
     </div>
   `;
+
+  // Elements
+  const nutriDate   = document.getElementById("nutriDate");
+  const btnProtein  = document.getElementById("btnProtein");
+  const btnWater    = document.getElementById("btnWater");
+  const btnVeg      = document.getElementById("btnVeg");
+  const inpEnergy   = document.getElementById("nutriEnergy");
+  const inpNotes    = document.getElementById("nutriNotes");
+
+  // Helper to draw buttons nicely
+  function setBtn(btn, label, valueYesNo) {
+    const isYes = valueYesNo === "Yes";
+    btn.textContent = `${label} ${isYes ? "✅" : "❌"}`;
+    btn.style.background = isYes ? "#111" : "#fff";
+    btn.style.color = isYes ? "#fff" : "#111";
+    btn.style.border = "1px solid #111";
+  }
+
+  function toggle(field) {
+    const cur = localStorage.getItem(key(field)) || "No";
+    const next = cur === "Yes" ? "No" : "Yes";
+    localStorage.setItem(key(field), next);
+    refreshButtons();
+  }
+
+  function refreshButtons() {
+    setBtn(btnProtein, "Protein", localStorage.getItem(key("protein")) || "No");
+    setBtn(btnWater,   "Water",   localStorage.getItem(key("water"))   || "No");
+    setBtn(btnVeg,     "Veg",     localStorage.getItem(key("veg"))     || "No");
+  }
+
+  // Date changes = switch to that day’s saved log
+  nutriDate.addEventListener("change", () => {
+    localStorage.setItem("nutri_date", nutriDate.value);
+    renderNutrition();
+  });
+
+  // Button toggles (no re-render, keeps UX smooth)
+  btnProtein.addEventListener("click", () => toggle("protein"));
+  btnWater.addEventListener("click", () => toggle("water"));
+  btnVeg.addEventListener("click", () => toggle("veg"));
+
+  // Inputs save live
+  inpEnergy.addEventListener("input", () => localStorage.setItem(key("energy"), inpEnergy.value));
+  inpNotes.addEventListener("input",  () => localStorage.setItem(key("notes"), inpNotes.value));
+
+  refreshButtons();
 }
+
 
 function renderProgress() {
   app.innerHTML = `
@@ -463,6 +553,60 @@ async function syncRun() {
 }
 
 window.syncRun = syncRun;
+
+async function syncNutrition() {
+  const ts = new Date().toISOString();
+  const date = localStorage.getItem("nutri_date") || todayDateStr();
+
+  const key = (k) => `nutri_${date}_${k}`;
+
+  const protein = localStorage.getItem(key("protein")) || "No";
+  const water   = localStorage.getItem(key("water"))   || "No";
+  const veg     = localStorage.getItem(key("veg"))     || "No";
+  const energy  = (localStorage.getItem(key("energy")) || "").trim();
+  const notes   = (localStorage.getItem(key("notes"))  || "").trim();
+
+  // One row per day (edits update that day) — best for coaching history
+  const rowId = `${ATHLETE}|NUTRITION|${date}`;
+
+  const nutritionRows = [[
+    rowId,
+    date,
+    ATHLETE,
+    protein,
+    water,
+    veg,
+    energy,
+    notes,
+    ts
+  ]];
+
+  const payload = JSON.stringify({
+    setRows: [],
+    runRows: [],
+    nutritionRows,
+    bodyRows: []
+  });
+
+  const el = document.getElementById("nutriSyncStatus");
+  if (el) el.textContent = "Syncing…";
+
+  try {
+    await fetch(SHEETS_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: "payload=" + encodeURIComponent(payload)
+    });
+
+    if (el) el.textContent = "✅ Nutrition synced!";
+  } catch (err) {
+    console.error(err);
+    if (el) el.textContent = "❌ Sync failed (check URL / deployment).";
+  }
+}
+
+window.syncNutrition = syncNutrition;
 
 // INITIAL LOAD
 renderToday();
