@@ -402,9 +402,8 @@ function todayDateStr() {
 }
 
 function renderNutrition() {
-  const date = localStorage.getItem("nutri_date") || todayDateStr();
 
-  // Load saved values for that date (so history works)
+  const date = localStorage.getItem("nutri_date") || todayDateStr();
   const key = (k) => `nutri_${date}_${k}`;
 
   const protein = localStorage.getItem(key("protein")) || "No";
@@ -417,148 +416,106 @@ function renderNutrition() {
     <div class="card">
       <h2>Nutrition (Daily Check)</h2>
 
-<div style="background:#f7f7f7; border:1px solid #ddd; border-radius:12px; padding:12px; margin:12px 0;">
-  <h3 style="margin:0 0 8px 0;">Today’s Targets</h3>
+      <!-- TARGETS -->
+      <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
+        <h3>Today's Targets</h3>
 
-  <div style="line-height:1.6;">
-    <strong>Protein:</strong> ${NUTRITION_TARGETS.protein_g}g
-    <br>
-    <small style="color:#555;">Aim: protein at every meal + 1 high-protein snack</small>
+        <strong>Protein:</strong> ${NUTRITION_TARGETS.protein_g}g<br>
+        <small>Protein every meal + snack</small><br><br>
 
-    <br><br>
+        <strong>Water:</strong> ${NUTRITION_TARGETS.water_l_min}-${NUTRITION_TARGETS.water_l_max}L<br>
+        <small>Add extra on run days</small><br><br>
 
-    <strong>Water:</strong> ${NUTRITION_TARGETS.water_l_min}–${NUTRITION_TARGETS.water_l_max}L
-    <br>
-    <small style="color:#555;">Add extra on run days</small>
+        <strong>Veg:</strong> ${NUTRITION_TARGETS.veg_serves}+ serves<br>
+        <small>2 fists veg lunch + dinner</small><br><br>
 
-    <br><br>
+        <strong>Steps:</strong> ${NUTRITION_TARGETS.steps.toLocaleString()}+
+      </div>
 
-    <strong>Veg:</strong> ${NUTRITION_TARGETS.veg_serves}+ serves
-    <br>
-    <small style="color:#555;">Easy win: 2 fists of veg at lunch + dinner</small>
+      <!-- PROTEIN CHEATSHEET -->
+      <div style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
+        <h3>Protein Cheatsheet 🍗</h3>
 
-    <br><br>
+        ≈30g protein examples:<br><br>
 
-    <strong>Steps:</strong> ${NUTRITION_TARGETS.steps.toLocaleString()}+ (optional)
-  </div>
-</div>
+        ✅ 150g chicken breast<br>
+        ✅ 200g Greek yogurt<br>
+        ✅ Whey shake + milk<br>
+        ✅ 4 eggs + egg whites<br>
+        ✅ 150g lean beef<br>
+        ✅ Tuna + rice cakes<br><br>
 
+        <small>
+        Goal = ~4 protein feeds/day → hits ${NUTRITION_TARGETS.protein_g}g automatically.
+        </small>
+      </div>
 
       <label>Date</label>
       <input id="nutriDate" type="date" value="${date}" />
 
-      <hr style="margin:12px 0;">
+      <hr>
 
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="btnProtein" type="button"></button>
-        <button id="btnWater" type="button"></button>
-        <button id="btnVeg" type="button"></button>
-      </div>
+      <button id="btnProtein"></button>
+      <button id="btnWater"></button>
+      <button id="btnVeg"></button>
 
-      <div style="margin-top:12px;">
-        <label>Energy (1–5)</label>
-        <input id="nutriEnergy" inputmode="numeric" placeholder="1–5" value="${energy}">
-      </div>
+      <br><br>
 
-      <div style="margin-top:8px;">
-        <label>Notes (optional)</label>
-        <input id="nutriNotes" placeholder="Hunger/sleep/stress etc" value="${notes}">
-      </div>
+      <label>Energy (1–5)</label>
+      <input id="nutriEnergy" value="${energy}">
 
-      <div style="margin-top:12px;">
-        <button onclick="syncNutrition()">Sync Nutrition to Coach 🍎</button>
-        <p id="nutriSyncStatus" style="color:#666;"></p>
-      </div>
+      <label>Notes</label>
+      <input id="nutriNotes" value="${notes}">
+
+      <br><br>
+
+      <button onclick="syncNutrition()">Sync Nutrition 🍎</button>
+      <p id="nutriSyncStatus"></p>
 
       <p style="color:green;">✓ Auto saved</p>
     </div>
   `;
 
-  <div style="
-  background:#fff;
-  border:1px solid #ddd;
-  border-radius:12px;
-  padding:12px;
-  margin:12px 0;
-">
-  <h3 style="margin:0 0 8px 0;">Protein Cheatsheet 🍗</h3>
+  const nutriDate = document.getElementById("nutriDate");
+  const btnProtein = document.getElementById("btnProtein");
+  const btnWater = document.getElementById("btnWater");
+  const btnVeg = document.getElementById("btnVeg");
+  const inpEnergy = document.getElementById("nutriEnergy");
+  const inpNotes = document.getElementById("nutriNotes");
 
-  <div style="line-height:1.6; color:#444;">
-
-    <strong>≈30g Protein Examples:</strong><br>
-
-    ✅ 150g chicken breast<br>
-    ✅ 200g Greek yogurt<br>
-    ✅ 1 scoop whey + milk<br>
-    ✅ 4 eggs + egg whites<br>
-    ✅ 150g lean beef<br>
-    ✅ Tuna can + rice cakes<br>
-
-    <br>
-
-    <strong>Easy Daily Formula:</strong><br>
-    Breakfast → Protein source<br>
-    Lunch → Protein + veg<br>
-    Dinner → Protein + veg<br>
-    Snack → Yogurt or shake
-
-    <br><br>
-
-    <small style="color:#666;">
-      Goal = ~4 protein feeds/day → hits ${NUTRITION_TARGETS.protein_g}g automatically.
-    </small>
-
-  </div>
-</div>
-
-  // Elements
-  const nutriDate   = document.getElementById("nutriDate");
-  const btnProtein  = document.getElementById("btnProtein");
-  const btnWater    = document.getElementById("btnWater");
-  const btnVeg      = document.getElementById("btnVeg");
-  const inpEnergy   = document.getElementById("nutriEnergy");
-  const inpNotes    = document.getElementById("nutriNotes");
-
-  // Helper to draw buttons nicely
-  function setBtn(btn, label, valueYesNo) {
-    const isYes = valueYesNo === "Yes";
-    btn.textContent = `${label} ${isYes ? "✅" : "❌"}`;
-    btn.style.background = isYes ? "#111" : "#fff";
-    btn.style.color = isYes ? "#fff" : "#111";
-    btn.style.border = "1px solid #111";
+  function setBtn(btn,label,val){
+    const yes = val==="Yes";
+    btn.textContent = `${label} ${yes?"✅":"❌"}`;
+    btn.style.background = yes ? "#111" : "#fff";
+    btn.style.color = yes ? "#fff" : "#111";
   }
 
-  function toggle(field) {
+  function toggle(field){
     const cur = localStorage.getItem(key(field)) || "No";
-    const next = cur === "Yes" ? "No" : "Yes";
-    localStorage.setItem(key(field), next);
-    refreshButtons();
+    localStorage.setItem(key(field), cur==="Yes"?"No":"Yes");
+    refresh();
   }
 
-  function refreshButtons() {
-    setBtn(btnProtein, "Protein", localStorage.getItem(key("protein")) || "No");
-    setBtn(btnWater,   "Water",   localStorage.getItem(key("water"))   || "No");
-    setBtn(btnVeg,     "Veg",     localStorage.getItem(key("veg"))     || "No");
+  function refresh(){
+    setBtn(btnProtein,"Protein",localStorage.getItem(key("protein"))||"No");
+    setBtn(btnWater,"Water",localStorage.getItem(key("water"))||"No");
+    setBtn(btnVeg,"Veg",localStorage.getItem(key("veg"))||"No");
   }
 
-  // Date changes = switch to that day’s saved log
-  nutriDate.addEventListener("change", () => {
-    localStorage.setItem("nutri_date", nutriDate.value);
+  nutriDate.addEventListener("change",()=>{
+    localStorage.setItem("nutri_date",nutriDate.value);
     renderNutrition();
   });
 
-  // Button toggles (no re-render, keeps UX smooth)
-  btnProtein.addEventListener("click", () => toggle("protein"));
-  btnWater.addEventListener("click", () => toggle("water"));
-  btnVeg.addEventListener("click", () => toggle("veg"));
+  btnProtein.onclick=()=>toggle("protein");
+  btnWater.onclick=()=>toggle("water");
+  btnVeg.onclick=()=>toggle("veg");
 
-  // Inputs save live
-  inpEnergy.addEventListener("input", () => localStorage.setItem(key("energy"), inpEnergy.value));
-  inpNotes.addEventListener("input",  () => localStorage.setItem(key("notes"), inpNotes.value));
+  inpEnergy.oninput=()=>localStorage.setItem(key("energy"),inpEnergy.value);
+  inpNotes.oninput=()=>localStorage.setItem(key("notes"),inpNotes.value);
 
-  refreshButtons();
+  refresh();
 }
-
 
 function renderProgress() {
   app.innerHTML = `
