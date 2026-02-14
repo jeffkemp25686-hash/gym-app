@@ -427,7 +427,7 @@ async function syncRun() {
 
   if(!distance && !time) return;
 
-  const rowId = `${ATHLETE}|RUN|${date}`;
+  const rowId = `${ATHLETE}|RUN|${ts}`;
 
   const runRows = [[
     rowId,
