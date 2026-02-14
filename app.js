@@ -9,6 +9,30 @@ const ATHLETE = "Alana";
 const app = document.getElementById("app");
 const STORAGE_DAY = "currentTrainingDay";
 
+function timeToMinutes(timeStr) {
+  if (!timeStr) return null;
+
+  if (timeStr.includes(":")) {
+    const parts = timeStr.split(":");
+    const mins = parseFloat(parts[0]);
+    const secs = parseFloat(parts[1] || 0);
+    return mins + secs / 60;
+  }
+
+  return parseFloat(timeStr);
+}
+
+function calculatePace(distance, timeStr) {
+  const mins = timeToMinutes(timeStr);
+  if (!distance || !mins) return "";
+
+  const pace = mins / distance;
+  const m = Math.floor(pace);
+  const s = Math.round((pace - m) * 60);
+
+  return `${m}:${String(s).padStart(2,"0")} /km`;
+}
+
 // --------------------------
 // PROGRAM STRUCTURE
 // --------------------------
@@ -286,13 +310,67 @@ window.syncToCoach = syncToCoach;
 // OTHER TABS (placeholders)
 // --------------------------
 function renderRun() {
+
+  const distance =
+    localStorage.getItem("run_distance") || "";
+
+  const time =
+    localStorage.getItem("run_time") || "";
+
+  const effort =
+    localStorage.getItem("run_effort") || "Easy";
+
+  const notes =
+    localStorage.getItem("run_notes") || "";
+
+  const pace = calculatePace(distance, time);
+
   app.innerHTML = `
     <div class="card">
-      <h2>Running Log</h2>
-      <p>Coming next step</p>
+      <h2>Run Log</h2>
+
+      <label>Distance (km)</label>
+      <input
+        value="${distance}"
+        oninput="
+          localStorage.setItem('run_distance',this.value);
+          renderRun();
+        "
+      >
+
+      <label>Time (mm:ss)</label>
+      <input
+        placeholder="28:30"
+        value="${time}"
+        oninput="
+          localStorage.setItem('run_time',this.value);
+          renderRun();
+        "
+      >
+
+      <label>Effort</label>
+      <select
+        onchange="localStorage.setItem('run_effort',this.value)"
+      >
+        <option ${effort==="Easy"?"selected":""}>Easy</option>
+        <option ${effort==="Moderate"?"selected":""}>Moderate</option>
+        <option ${effort==="Hard"?"selected":""}>Hard</option>
+      </select>
+
+      <label>Notes</label>
+      <input
+        value="${notes}"
+        oninput="localStorage.setItem('run_notes',this.value)"
+      >
+
+      <p><strong>Pace:</strong> ${pace || "--"} </p>
+
+      <button onclick="syncRun()">Sync Run to Coach 🏃</button>
+      <p id="runSyncStatus"></p>
     </div>
   `;
 }
+
 
 function renderNutrition() {
   app.innerHTML = `
@@ -311,6 +389,63 @@ function renderProgress() {
     </div>
   `;
 }
+async function syncRun() {
+
+  const ts = new Date().toISOString();
+  const date = ts.slice(0,10);
+
+  const distance =
+    localStorage.getItem("run_distance") || "";
+
+  const time =
+    localStorage.getItem("run_time") || "";
+
+  const effort =
+    localStorage.getItem("run_effort") || "";
+
+  const notes =
+    localStorage.getItem("run_notes") || "";
+
+  const pace = calculatePace(distance, time);
+
+  if(!distance && !time) return;
+
+  const rowId = `${ATHLETE}|RUN|${date}`;
+
+  const runRows = [[
+    rowId,
+    ts,
+    ATHLETE,
+    distance,
+    time,
+    effort,
+    notes,
+    pace
+  ]];
+
+  const payload = JSON.stringify({
+    setRows: [],
+    runRows,
+    nutritionRows: [],
+    bodyRows: []
+  });
+
+  const el = document.getElementById("runSyncStatus");
+  if(el) el.textContent = "Syncing…";
+
+  await fetch(SHEETS_URL,{
+    method:"POST",
+    mode:"no-cors",
+    headers:{
+      "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"
+    },
+    body:"payload="+encodeURIComponent(payload)
+  });
+
+  if(el) el.textContent="✅ Run synced!";
+}
+
+window.syncRun = syncRun;
 
 // INITIAL LOAD
 renderToday();
