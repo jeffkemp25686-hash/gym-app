@@ -24,6 +24,7 @@ const STORAGE_DAY = "currentTrainingDay";
 const SETS_LOG_KEY = "history_sets"; // array of set rows
 const RUNS_LOG_KEY = "history_runs"; // array of run rows
 const NUTRI_LOG_KEY = "history_nutrition"; // array of nutrition rows
+const BODY_LOG_KEY = "history_body";
 
 function getLogArr(key) {
   return JSON.parse(localStorage.getItem(key) || "[]");
@@ -148,8 +149,10 @@ function showTab(tab) {
   if (tab === "today") renderToday();
   if (tab === "run") renderRun();
   if (tab === "nutrition") renderNutrition();
+  if (tab === "body") renderBody();   // ✅ NEW
   if (tab === "progress") renderProgress();
 }
+
 window.showTab = showTab;
 
 // --------------------------
@@ -609,6 +612,67 @@ function renderNutrition() {
 
   refresh();
 }
+// --------------------------
+// BODY TAB
+// --------------------------
+function renderBody() {
+
+  const date = localStorage.getItem("body_date") || todayDateStr();
+  const key = (k) => `body_${date}_${k}`;
+
+  const weight = localStorage.getItem(key("weight")) || "";
+  const waist  = localStorage.getItem(key("waist")) || "";
+  const hips   = localStorage.getItem(key("hips")) || "";
+  const notes  = localStorage.getItem(key("notes")) || "";
+
+  app.innerHTML = `
+    <div class="card">
+      <h2>Body Tracking</h2>
+
+      <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:12px;margin-bottom:12px;">
+        <strong>Coach Goal</strong><br>
+        Lean muscle gain while improving 5K endurance.<br>
+        Track weekly trends — not daily fluctuations.
+      </div>
+
+      <label>Date</label>
+      <input id="bodyDate" type="date" value="${date}">
+
+      <label>Bodyweight (kg)</label>
+      <input id="bodyWeight" placeholder="56.0" value="${weight}">
+
+      <label>Waist (cm)</label>
+      <input id="bodyWaist" placeholder="Optional" value="${waist}">
+
+      <label>Hips (cm)</label>
+      <input id="bodyHips" placeholder="Optional" value="${hips}">
+
+      <label>Notes</label>
+      <input id="bodyNotes" placeholder="Sleep, cycle, stress etc" value="${notes}">
+
+      <button onclick="syncBody()">Sync Body to Coach 📊</button>
+      <p id="bodySyncStatus" style="color:#666;"></p>
+
+      <p style="color:green;">✓ Auto saved</p>
+    </div>
+  `;
+
+  const dateInput = document.getElementById("bodyDate");
+  const weightInput = document.getElementById("bodyWeight");
+  const waistInput = document.getElementById("bodyWaist");
+  const hipsInput = document.getElementById("bodyHips");
+  const notesInput = document.getElementById("bodyNotes");
+
+  dateInput.addEventListener("change", () => {
+    localStorage.setItem("body_date", dateInput.value);
+    renderBody();
+  });
+
+  weightInput.oninput = () => localStorage.setItem(key("weight"), weightInput.value);
+  waistInput.oninput  = () => localStorage.setItem(key("waist"), waistInput.value);
+  hipsInput.oninput   = () => localStorage.setItem(key("hips"), hipsInput.value);
+  notesInput.oninput  = () => localStorage.setItem(key("notes"), notesInput.value);
+}
 
 // --------------------------
 // NUTRITION SYNC
@@ -678,6 +742,68 @@ async function syncNutrition() {
   }
 }
 window.syncNutrition = syncNutrition;
+// --------------------------
+// BODY SYNC
+// Sheet tab: "Body"
+// --------------------------
+async function syncBody() {
+
+  const ts = new Date().toISOString();
+  const date = localStorage.getItem("body_date") || todayDateStr();
+  const key = (k) => `body_${date}_${k}`;
+
+  const weight = (localStorage.getItem(key("weight")) || "").trim();
+  const waist  = (localStorage.getItem(key("waist")) || "").trim();
+  const hips   = (localStorage.getItem(key("hips")) || "").trim();
+  const notes  = (localStorage.getItem(key("notes")) || "").trim();
+
+  if (!weight && !waist && !hips) return;
+
+  // one row per day (editable)
+  const rowId = `${ATHLETE}|BODY|${date}`;
+
+  const bodyRows = [[
+    rowId,
+    date,
+    ATHLETE,
+    weight,
+    waist,
+    hips,
+    notes,
+    ts
+  ]];
+
+  // save locally for graphs later
+  bodyRows.forEach(r => upsertRowIntoHistory(BODY_LOG_KEY, r));
+
+  const payload = JSON.stringify({
+    setRows: [],
+    runRows: [],
+    nutritionRows: [],
+    bodyRows
+  });
+
+  const el = document.getElementById("bodySyncStatus");
+  if (el) el.textContent = "Syncing…";
+
+  try {
+    await fetch(SHEETS_URL,{
+      method:"POST",
+      mode:"no-cors",
+      headers:{
+        "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"
+      },
+      body:"payload="+encodeURIComponent(payload)
+    });
+
+    if (el) el.textContent="✅ Body stats synced!";
+  } catch(err){
+    console.error(err);
+    if (el) el.textContent="❌ Sync failed.";
+  }
+}
+
+window.syncBody = syncBody;
 
 // --------------------------
 // PROGRESS TAB (Summary + Charts)
