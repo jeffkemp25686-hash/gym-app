@@ -323,53 +323,70 @@ function renderRun() {
   const notes =
     localStorage.getItem("run_notes") || "";
 
-  const pace = calculatePace(distance, time);
-
   app.innerHTML = `
     <div class="card">
       <h2>Run Log</h2>
 
       <label>Distance (km)</label>
-      <input
-        value="${distance}"
-        oninput="
-          localStorage.setItem('run_distance',this.value);
-          renderRun();
-        "
-      >
+      <input id="runDistance" value="${distance}">
 
       <label>Time (mm:ss)</label>
-      <input
-        placeholder="28:30"
-        value="${time}"
-        oninput="
-          localStorage.setItem('run_time',this.value);
-          renderRun();
-        "
-      >
+      <input id="runTime" placeholder="28:30" value="${time}">
 
       <label>Effort</label>
-      <select
-        onchange="localStorage.setItem('run_effort',this.value)"
-      >
+      <select id="runEffort">
         <option ${effort==="Easy"?"selected":""}>Easy</option>
         <option ${effort==="Moderate"?"selected":""}>Moderate</option>
         <option ${effort==="Hard"?"selected":""}>Hard</option>
       </select>
 
       <label>Notes</label>
-      <input
-        value="${notes}"
-        oninput="localStorage.setItem('run_notes',this.value)"
-      >
+      <input id="runNotes" value="${notes}">
 
-      <p><strong>Pace:</strong> ${pace || "--"} </p>
+      <p><strong>Pace:</strong> <span id="paceDisplay">--</span></p>
 
       <button onclick="syncRun()">Sync Run to Coach 🏃</button>
       <p id="runSyncStatus"></p>
     </div>
   `;
+
+  // ---------- EVENT LISTENERS (NO RE-RENDER) ----------
+
+  const distInput = document.getElementById("runDistance");
+  const timeInput = document.getElementById("runTime");
+  const effortSelect = document.getElementById("runEffort");
+  const notesInput = document.getElementById("runNotes");
+  const paceDisplay = document.getElementById("paceDisplay");
+
+  function updatePace() {
+    const pace = calculatePace(
+      distInput.value,
+      timeInput.value
+    );
+    paceDisplay.textContent = pace || "--";
+  }
+
+  distInput.addEventListener("input", () => {
+    localStorage.setItem("run_distance", distInput.value);
+    updatePace();
+  });
+
+  timeInput.addEventListener("input", () => {
+    localStorage.setItem("run_time", timeInput.value);
+    updatePace();
+  });
+
+  effortSelect.addEventListener("change", () => {
+    localStorage.setItem("run_effort", effortSelect.value);
+  });
+
+  notesInput.addEventListener("input", () => {
+    localStorage.setItem("run_notes", notesInput.value);
+  });
+
+  updatePace();
 }
+
 
 
 function renderNutrition() {
