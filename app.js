@@ -426,27 +426,111 @@ async function syncToCoach() {
 }
 window.syncToCoach = syncToCoach;
 
-// --------------------------
-// RUN TAB (DATE-BASED DRAFT)
-// --------------------------
+function getRunPrescription(dayName) {
+  const name = (dayName || "").toLowerCase();
+
+  // You can tweak these any time
+  if (name.includes("long easy run")) {
+    return {
+      title: "Long Easy Run (Comfortable)",
+      details: [
+        "Warm-up: 5–8 min brisk walk or very easy jog",
+        "Run: 3–6km at EASY pace (you can talk in sentences)",
+        "Cool-down: 5 min walk + light stretching",
+      ],
+      effort: "Easy",
+      defaultDistance: "4.0",
+    };
+  }
+
+  if (name.includes("run + glutes")) {
+    return {
+      title: "Run Session (Quality but Controlled)",
+      details: [
+        "Warm-up: 5–8 min easy jog + 3 × 20 sec strides (optional)",
+        "Main set (choose 1):",
+        "• Option A: 10–20 min steady (Moderate, controlled breathing)",
+        "• Option B: 6 × 1 min faster / 1 min easy (repeat)",
+        "Cool-down: 5 min easy + stretch calves/hips",
+      ],
+      effort: "Moderate",
+      defaultDistance: "3.0",
+    };
+  }
+
+  // fallback
+  return {
+    title: "Run Session",
+    details: [
+      "Warm-up: 5–8 min easy",
+      "Run: Easy–moderate effort",
+      "Cool-down: 5 min walk",
+    ],
+    effort: "Easy",
+    defaultDistance: "",
+  };
+}
+
+function get12WeekRunRoadmap() {
+  return [
+    { weeks: "1–2", plan: "2–3 runs/week. Easy runs 2.5–3.5km. 1 session can be short intervals (1 min on/1 min easy)." },
+    { weeks: "3–4", plan: "Easy runs 3–4km. Long run 4–5km. Keep effort mostly EASY." },
+    { weeks: "5–6", plan: "Easy runs 3.5–4.5km. Add 10–15 min steady (moderate) once/week." },
+    { weeks: "7–8", plan: "Long run 5–6km easy. 1 session/week: 6×1 min faster / 1 min easy." },
+    { weeks: "9–10", plan: "Long run 5.5–6.5km easy. 1 session/week: 12–20 min steady." },
+    { weeks: "11–12", plan: "5km feels comfortable. One easy run + one steady run. Week 12: 5km ‘comfortable effort’." },
+  ];
+}
+
 function renderRun() {
+  const dayIndex = getCurrentDay();
+  const day = program[dayIndex];
   const date = todayRunDate();
 
-  const distance = localStorage.getItem(runKey(date, "distance")) || "";
-  const time = localStorage.getItem(runKey(date, "time")) || "";
-  const effort = localStorage.getItem(runKey(date, "effort")) || "Easy";
-  const notes = localStorage.getItem(runKey(date, "notes")) || "";
+  const distKey = runKey(date, "distance");
+  const timeKey = runKey(date, "time");
+  const effortKey = runKey(date, "effort");
+  const notesKey = runKey(date, "notes");
+
+  const prescription = getRunPrescription(day?.name || "");
+
+  const distance = localStorage.getItem(distKey) || prescription.defaultDistance || "";
+  const time = localStorage.getItem(timeKey) || "";
+  const effort = localStorage.getItem(effortKey) || prescription.effort || "Easy";
+  const notes = localStorage.getItem(notesKey) || "";
+
+  const roadmap = get12WeekRunRoadmap();
 
   app.innerHTML = `
     <div class="card">
-      <h2>Run Log</h2>
-      <p style="color:#666;margin-top:-6px;">Saving for: <strong>${date}</strong></p>
+      <h2>Run</h2>
+
+      <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
+        <h3 style="margin:0 0 6px 0;">Today's Run Plan</h3>
+        <div style="font-weight:700;margin-bottom:6px;">${prescription.title}</div>
+        <ul style="margin:0 0 0 18px; padding:0; line-height:1.6; color:#333;">
+          ${prescription.details.map(x => `<li>${x}</li>`).join("")}
+        </ul>
+        <div style="margin-top:8px;color:#666;font-size:13px;">
+          Tip: Log your run here, then go back to <strong>Today</strong> to finish the workout.
+        </div>
+      </div>
+
+      <div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
+        <h3 style="margin:0 0 8px 0;">12-Week Progression (Simple Guide)</h3>
+        <div style="font-size:14px; line-height:1.55; color:#333;">
+          ${roadmap.map(r => `<div style="margin:6px 0;"><strong>${r.weeks}:</strong> ${r.plan}</div>`).join("")}
+        </div>
+      </div>
+
+      <label>Date</label>
+      <input id="runDate" type="date" value="${date}" />
 
       <label>Distance (km)</label>
-      <input id="runDistance" value="${distance}" inputmode="decimal">
+      <input id="runDistance" value="${distance}" inputmode="decimal" placeholder="e.g. 3.0" />
 
       <label>Time (mm:ss)</label>
-      <input id="runTime" placeholder="28:30" value="${time}" inputmode="text">
+      <input id="runTime" placeholder="e.g. 28:30" value="${time}" />
 
       <label>Effort</label>
       <select id="runEffort">
@@ -456,7 +540,7 @@ function renderRun() {
       </select>
 
       <label>Notes</label>
-      <input id="runNotes" value="${notes}">
+      <input id="runNotes" value="${notes}" placeholder="How it felt / terrain / anything notable" />
 
       <p><strong>Pace:</strong> <span id="paceDisplay">--</span></p>
 
@@ -465,6 +549,8 @@ function renderRun() {
     </div>
   `;
 
+  // Elements
+  const dateInput = document.getElementById("runDate");
   const distInput = document.getElementById("runDistance");
   const timeInput = document.getElementById("runTime");
   const effortSelect = document.getElementById("runEffort");
@@ -476,19 +562,28 @@ function renderRun() {
     paceDisplay.textContent = pace || "--";
   }
 
+  // Date change swaps keys (history-friendly)
+  dateInput.addEventListener("change", () => {
+    localStorage.setItem("run_date", dateInput.value);
+    renderRun();
+  });
+
   distInput.addEventListener("input", () => {
-    localStorage.setItem(runKey(date, "distance"), distInput.value);
+    localStorage.setItem(runKey(todayRunDate(), "distance"), distInput.value);
     updatePace();
   });
+
   timeInput.addEventListener("input", () => {
-    localStorage.setItem(runKey(date, "time"), timeInput.value);
+    localStorage.setItem(runKey(todayRunDate(), "time"), timeInput.value);
     updatePace();
   });
+
   effortSelect.addEventListener("change", () => {
-    localStorage.setItem(runKey(date, "effort"), effortSelect.value);
+    localStorage.setItem(runKey(todayRunDate(), "effort"), effortSelect.value);
   });
+
   notesInput.addEventListener("input", () => {
-    localStorage.setItem(runKey(date, "notes"), notesInput.value);
+    localStorage.setItem(runKey(todayRunDate(), "notes"), notesInput.value);
   });
 
   updatePace();
