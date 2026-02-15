@@ -1,7 +1,8 @@
 // ==========================
 // ALANA TRAINING APP
 // WORKOUT ENGINE + LOGGING + SUGGESTIONS + COACH SYNC
-// RUNS + NUTRITION + LOCAL HISTORY + PROGRESS DASHBOARD
+// RUNS + NUTRITION + BODY + LOCAL HISTORY + PROGRESS DASHBOARD
+// + RUN DAY: no weight/reps inputs, AND Finish Workout locked until run logged
 // ==========================
 
 const SHEETS_URL =
@@ -24,7 +25,7 @@ const STORAGE_DAY = "currentTrainingDay";
 const SETS_LOG_KEY = "history_sets"; // array of set rows
 const RUNS_LOG_KEY = "history_runs"; // array of run rows
 const NUTRI_LOG_KEY = "history_nutrition"; // array of nutrition rows
-const BODY_LOG_KEY = "history_body";
+const BODY_LOG_KEY = "history_body"; // array of body rows
 
 function getLogArr(key) {
   return JSON.parse(localStorage.getItem(key) || "[]");
@@ -80,6 +81,15 @@ function todayDateStr() {
 }
 
 // --------------------------
+// RUN COMPLETION CHECK (LOCK FINISH BUTTON)
+// --------------------------
+function isRunLogged() {
+  const distance = (localStorage.getItem("run_distance") || "").trim();
+  const time = (localStorage.getItem("run_time") || "").trim();
+  return !!(distance && time);
+}
+
+// --------------------------
 // PROGRAM STRUCTURE
 // --------------------------
 const program = [
@@ -106,10 +116,13 @@ const program = [
   {
     name: "Run + Glutes",
     exercises: [
+      // Strength part first
       { name: "Hip Thrust", sets: 4, reps: 10 },
       { name: "Cable Kickbacks", sets: 3, reps: 15 },
       { name: "Step Ups", sets: 3, reps: 12 },
       { name: "Plank", sets: 3, reps: 30 },
+      // Special run marker so Today tab knows this is a run day
+      { name: "Run Session (log in Run tab)", sets: 1, reps: 1 },
     ],
   },
   {
@@ -138,7 +151,9 @@ const program = [
   },
   {
     name: "Long Easy Run",
-    exercises: [{ name: "Comfortable 3–6km Run", sets: 1, reps: 1 }],
+    exercises: [
+      { name: "Run Session (log in Run tab)", sets: 1, reps: 1 },
+    ],
   },
 ];
 
@@ -149,10 +164,9 @@ function showTab(tab) {
   if (tab === "today") renderToday();
   if (tab === "run") renderRun();
   if (tab === "nutrition") renderNutrition();
-  if (tab === "body") renderBody();   // ✅ NEW
+  if (tab === "body") renderBody();
   if (tab === "progress") renderProgress();
 }
-
 window.showTab = showTab;
 
 // --------------------------
@@ -204,12 +218,8 @@ function getSuggestion(dayIndex, exIndex, targetReps) {
   let setsLogged = 0;
 
   for (let s = 1; s <= 6; s++) {
-    const w = parseFloat(
-      localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-w`)
-    );
-    const r = parseFloat(
-      localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-r`)
-    );
+    const w = parseFloat(localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-w`));
+    const r = parseFloat(localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-r`));
 
     if (!isNaN(w) && !isNaN(r)) {
       totalWeight += w;
@@ -231,11 +241,14 @@ function getSuggestion(dayIndex, exIndex, targetReps) {
 }
 
 // --------------------------
-// TODAY TAB
+// TODAY TAB (RUN INSTRUCTIONS + LOCK FINISH)
 // --------------------------
 function renderToday() {
   const dayIndex = getCurrentDay();
   const day = program[dayIndex];
+
+  const isRunDay = day.name.toLowerCase().includes("run");
+  const runComplete = isRunLogged();
 
   let html = `
     <div class="card">
@@ -244,88 +257,68 @@ function renderToday() {
   `;
 
   day.exercises.forEach((ex, exIndex) => {
+    const isRunExercise =
+      ex.name.toLowerCase().includes("run session") ||
+      ex.name.toLowerCase().includes("comfortable") ||
+      ex.name.toLowerCase().includes("run") ||
+      day.name.toLowerCase().includes("run");
 
-  // ---------- RUN DAY DETECTION ----------
-  const isRunExercise =
-    ex.name.toLowerCase().includes("run") ||
-    day.name.toLowerCase().includes("run");
+    // ===== RUN SESSION UI (NO WEIGHT/REPS INPUTS) =====
+    // Only treat the explicit run marker/long-run exercise as the run block.
+    const isRunBlock = ex.name.toLowerCase().includes("run session") || ex.name.toLowerCase().includes("comfortable");
 
-  // ===== RUN SESSION UI =====
-  if (isRunExercise) {
+    if (isRunBlock) {
+      html += `
+        <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;">
+          <h4>${ex.name}</h4>
+          <p style="margin:8px 0;">🏃 <strong>Run Session</strong></p>
+          <p style="color:#555;margin:6px 0;">
+            Go to the <strong>Run</strong> tab and enter your distance + time.
+          </p>
+          <p style="color:#555;margin:6px 0;">
+            After you log it, come back here — the <strong>Finish Workout</strong> button will unlock.
+          </p>
+          <p style="color:${runComplete ? "green" : "#cc8800"}; margin:10px 0 0 0;">
+            ${runComplete ? "✅ Run logged — you can finish the workout." : "⚠️ Run not logged yet."}
+          </p>
+        </div>
+      `;
+      return;
+    }
 
-    html += `
-      <div style="
-        background:#f7f7f7;
-        border:1px solid #ddd;
-        border-radius:12px;
-        padding:14px;
-        margin:12px 0;
-      ">
-        <h4>${ex.name}</h4>
-
-        <p style="margin:8px 0;">
-          🏃 <strong>Run Session</strong>
-        </p>
-
-        <p style="color:#555;">
-          Go to the <strong>Run</strong> tab and enter your distance and time.
-        </p>
-
-        <p style="color:#555;">
-          Once completed, return here and press
-          <strong>Finish Workout ✅</strong>.
-        </p>
-      </div>
-    `;
-
-    return; // skip strength inputs
-  }
-
-  // ===== NORMAL STRENGTH EXERCISES =====
-  const suggestion = getSuggestion(dayIndex, exIndex, ex.reps);
-
-  html += `
-    <h4>${ex.name} — ${ex.sets} x ${ex.reps}</h4>
-    <small style="color:#666;">
-      ${suggestion ? `Suggested next time: ${suggestion} kg` : ""}
-    </small>
-  `;
-
-  for (let s = 1; s <= ex.sets; s++) {
-
-    const weightKey = `d${dayIndex}-e${exIndex}-s${s}-w`;
-    const repsKey = `d${dayIndex}-e${exIndex}-s${s}-r`;
-
-    const weight = localStorage.getItem(weightKey) || "";
-    const reps = localStorage.getItem(repsKey) || "";
+    // ===== NORMAL STRENGTH EXERCISES =====
+    const suggestion = getSuggestion(dayIndex, exIndex, ex.reps);
 
     html += `
-      <div style="margin-bottom:8px;">
-        Set ${s}<br>
-
-        <input
-          placeholder="Weight"
-          value="${weight}"
-          oninput="localStorage.setItem('${weightKey}',this.value)"
-        >
-
-        <input
-          placeholder="Reps"
-          value="${reps}"
-          oninput="localStorage.setItem('${repsKey}',this.value)"
-        >
-      </div>
+      <h4>${ex.name} — ${ex.sets} x ${ex.reps}</h4>
+      <small style="color:#666;">
+        ${suggestion ? `Suggested next time: ${suggestion} kg` : ""}
+      </small>
     `;
-  }
 
-  html += `
-    <button onclick="startRestTimer(this)">
-      Start 60s Rest
-    </button>
-    <hr>
-  `;
-});
+    for (let s = 1; s <= ex.sets; s++) {
+      const weightKey = `d${dayIndex}-e${exIndex}-s${s}-w`;
+      const repsKey = `d${dayIndex}-e${exIndex}-s${s}-r`;
 
+      const weight = localStorage.getItem(weightKey) || "";
+      const reps = localStorage.getItem(repsKey) || "";
+
+      html += `
+        <div style="margin-bottom:8px;">
+          Set ${s}<br>
+          <input
+            placeholder="Weight"
+            value="${weight}"
+            oninput="localStorage.setItem('${weightKey}',this.value)"
+          >
+          <input
+            placeholder="Reps"
+            value="${reps}"
+            oninput="localStorage.setItem('${repsKey}',this.value)"
+          >
+        </div>
+      `;
+    }
 
     html += `
       <button onclick="startRestTimer(this)">Start 60s Rest</button>
@@ -337,7 +330,22 @@ function renderToday() {
       <button onclick="syncToCoach()">Sync to Coach ✅</button>
       <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
 
-      <button onclick="nextDay()" style="margin-top:10px;">Finish Workout ✅</button>
+      <button
+        onclick="nextDay()"
+        style="margin-top:10px; opacity:${isRunDay && !runComplete ? 0.5 : 1};"
+        ${isRunDay && !runComplete ? "disabled" : ""}
+      >
+        Finish Workout ✅
+      </button>
+
+      ${
+        isRunDay && !runComplete
+          ? `<p style="color:#cc8800;margin-top:8px;">
+               ⚠️ Log your run in the Run tab first.
+             </p>`
+          : ""
+      }
+
       <p style="color:green;">✓ Auto saved</p>
     </div>
   `;
@@ -361,13 +369,13 @@ async function syncToCoach() {
   const setRows = [];
 
   day.exercises.forEach((ex, exIndex) => {
+    // Skip run block rows (no sets to log)
+    const lowerName = ex.name.toLowerCase();
+    if (lowerName.includes("run session") || lowerName.includes("comfortable")) return;
+
     for (let s = 1; s <= ex.sets; s++) {
-      const w = (
-        localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-w`) || ""
-      ).trim();
-      const r = (
-        localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-r`) || ""
-      ).trim();
+      const w = (localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-w`) || "").trim();
+      const r = (localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-r`) || "").trim();
 
       if (w || r) {
         const rowId = `${ATHLETE}|${date}|D${dayIndex}|${day.name}|${ex.name}|set${s}`;
@@ -376,7 +384,6 @@ async function syncToCoach() {
     }
   });
 
-  // Save locally for Progress graphs/history
   setRows.forEach((r) => upsertRowIntoHistory(SETS_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -393,9 +400,7 @@ async function syncToCoach() {
     await fetch(SHEETS_URL, {
       method: "POST",
       mode: "no-cors",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
       body: "payload=" + encodeURIComponent(payload),
     });
     if (el) el.textContent = "✅ Synced. Check Google Sheet → Sets tab.";
@@ -407,7 +412,7 @@ async function syncToCoach() {
 window.syncToCoach = syncToCoach;
 
 // --------------------------
-// RUN TAB (no re-render typing)
+// RUN TAB (NO RE-RENDER TYPING)
 // --------------------------
 function renderRun() {
   const distance = localStorage.getItem("run_distance") || "";
@@ -475,7 +480,7 @@ function renderRun() {
 }
 
 // --------------------------
-// RUN SYNC (history rows, never overwrite)
+// RUN SYNC (HISTORY ROWS, NEVER OVERWRITE)
 // Sheet tab: "Runs"
 // Headers recommended:
 // RowID | Timestamp | Athlete | DistanceKm | Time | Effort | Notes | Pace
@@ -491,12 +496,9 @@ async function syncRun() {
   const pace = calculatePace(distance, time);
   if (!distance && !time) return;
 
-  // UNIQUE RowID so each run is stored historically
   const rowId = `${ATHLETE}|RUN|${ts}`;
-
   const runRows = [[rowId, ts, ATHLETE, distance, time, effort, notes, pace]];
 
-  // Save locally for Progress graphs/history
   runRows.forEach((r) => upsertRowIntoHistory(RUNS_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -513,9 +515,7 @@ async function syncRun() {
     await fetch(SHEETS_URL, {
       method: "POST",
       mode: "no-cors",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
       body: "payload=" + encodeURIComponent(payload),
     });
     if (el) el.textContent = "✅ Run synced!";
@@ -523,11 +523,14 @@ async function syncRun() {
     console.error(err);
     if (el) el.textContent = "❌ Sync failed.";
   }
+
+  // unlock Finish Workout on run days
+  renderToday();
 }
 window.syncRun = syncRun;
 
 // --------------------------
-// NUTRITION TAB (daily habits + steps)
+// NUTRITION TAB (DAILY HABITS + STEPS)
 // --------------------------
 function renderNutrition() {
   const date = localStorage.getItem("nutri_date") || todayDateStr();
@@ -540,7 +543,6 @@ function renderNutrition() {
     <div class="card">
       <h2>Nutrition (Daily Check)</h2>
 
-      <!-- TARGETS -->
       <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
         <h3 style="margin:0 0 8px 0;">Today's Targets</h3>
 
@@ -556,10 +558,8 @@ function renderNutrition() {
         <strong>Steps:</strong> ${NUTRITION_TARGETS.steps.toLocaleString()}+
       </div>
 
-      <!-- PROTEIN CHEATSHEET -->
       <div style="background:#fff;border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
         <h3 style="margin:0 0 8px 0;">Protein Cheatsheet 🍗</h3>
-
         <div style="line-height:1.6;color:#444;">
           <strong>≈30g protein examples:</strong><br>
           ✅ 150g chicken breast<br>
@@ -568,7 +568,6 @@ function renderNutrition() {
           ✅ 4 eggs + egg whites<br>
           ✅ 150g lean beef<br>
           ✅ Tuna + rice cakes<br><br>
-
           <small style="color:#666;">
             Goal = ~4 protein feeds/day → hits ${NUTRITION_TARGETS.protein_g}g automatically.
           </small>
@@ -640,7 +639,6 @@ function renderNutrition() {
     setBtn(btnWater, "Water", localStorage.getItem(key("water")) || "No");
     setBtn(btnVeg, "Veg", localStorage.getItem(key("veg")) || "No");
     setBtn(btnSteps, "Steps", localStorage.getItem(key("steps")) || "No");
-
     inpStepsCount.value = localStorage.getItem(key("stepsCount")) || "";
   }
 
@@ -654,26 +652,24 @@ function renderNutrition() {
   btnVeg.onclick = () => toggle("veg");
   btnSteps.onclick = () => toggle("steps");
 
-  inpStepsCount.oninput = () =>
-    localStorage.setItem(key("stepsCount"), inpStepsCount.value);
-
+  inpStepsCount.oninput = () => localStorage.setItem(key("stepsCount"), inpStepsCount.value);
   inpEnergy.oninput = () => localStorage.setItem(key("energy"), inpEnergy.value);
   inpNotes.oninput = () => localStorage.setItem(key("notes"), inpNotes.value);
 
   refresh();
 }
+
 // --------------------------
 // BODY TAB
 // --------------------------
 function renderBody() {
-
   const date = localStorage.getItem("body_date") || todayDateStr();
   const key = (k) => `body_${date}_${k}`;
 
   const weight = localStorage.getItem(key("weight")) || "";
-  const waist  = localStorage.getItem(key("waist")) || "";
-  const hips   = localStorage.getItem(key("hips")) || "";
-  const notes  = localStorage.getItem(key("notes")) || "";
+  const waist = localStorage.getItem(key("waist")) || "";
+  const hips = localStorage.getItem(key("hips")) || "";
+  const notes = localStorage.getItem(key("notes")) || "";
 
   app.innerHTML = `
     <div class="card">
@@ -719,9 +715,9 @@ function renderBody() {
   });
 
   weightInput.oninput = () => localStorage.setItem(key("weight"), weightInput.value);
-  waistInput.oninput  = () => localStorage.setItem(key("waist"), waistInput.value);
-  hipsInput.oninput   = () => localStorage.setItem(key("hips"), hipsInput.value);
-  notesInput.oninput  = () => localStorage.setItem(key("notes"), notesInput.value);
+  waistInput.oninput = () => localStorage.setItem(key("waist"), waistInput.value);
+  hipsInput.oninput = () => localStorage.setItem(key("hips"), hipsInput.value);
+  notesInput.oninput = () => localStorage.setItem(key("notes"), notesInput.value);
 }
 
 // --------------------------
@@ -743,26 +739,12 @@ async function syncNutrition() {
   const energy = (localStorage.getItem(key("energy")) || "").trim();
   const notes = (localStorage.getItem(key("notes")) || "").trim();
 
-  // One row per day (edits update that day)
   const rowId = `${ATHLETE}|NUTRITION|${date}`;
 
-  const nutritionRows = [
-    [
-      rowId,
-      date,
-      ATHLETE,
-      protein,
-      water,
-      veg,
-      steps,
-      stepsCount,
-      energy,
-      notes,
-      ts,
-    ],
-  ];
+  const nutritionRows = [[
+    rowId, date, ATHLETE, protein, water, veg, steps, stepsCount, energy, notes, ts
+  ]];
 
-  // Save locally for Progress graphs/history
   nutritionRows.forEach((r) => upsertRowIntoHistory(NUTRI_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -779,12 +761,9 @@ async function syncNutrition() {
     await fetch(SHEETS_URL, {
       method: "POST",
       mode: "no-cors",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
       body: "payload=" + encodeURIComponent(payload),
     });
-
     if (el) el.textContent = "✅ Nutrition synced!";
   } catch (err) {
     console.error(err);
@@ -792,71 +771,58 @@ async function syncNutrition() {
   }
 }
 window.syncNutrition = syncNutrition;
+
 // --------------------------
 // BODY SYNC
 // Sheet tab: "Body"
+// Headers recommended:
+// RowID | Date | Athlete | WeightKg | WaistCm | HipsCm | Notes | Timestamp
 // --------------------------
 async function syncBody() {
-
   const ts = new Date().toISOString();
   const date = localStorage.getItem("body_date") || todayDateStr();
   const key = (k) => `body_${date}_${k}`;
 
   const weight = (localStorage.getItem(key("weight")) || "").trim();
-  const waist  = (localStorage.getItem(key("waist")) || "").trim();
-  const hips   = (localStorage.getItem(key("hips")) || "").trim();
-  const notes  = (localStorage.getItem(key("notes")) || "").trim();
+  const waist = (localStorage.getItem(key("waist")) || "").trim();
+  const hips = (localStorage.getItem(key("hips")) || "").trim();
+  const notes = (localStorage.getItem(key("notes")) || "").trim();
 
   if (!weight && !waist && !hips) return;
 
-  // one row per day (editable)
   const rowId = `${ATHLETE}|BODY|${date}`;
 
-  const bodyRows = [[
-    rowId,
-    date,
-    ATHLETE,
-    weight,
-    waist,
-    hips,
-    notes,
-    ts
-  ]];
-
-  // save locally for graphs later
-  bodyRows.forEach(r => upsertRowIntoHistory(BODY_LOG_KEY, r));
+  const bodyRows = [[rowId, date, ATHLETE, weight, waist, hips, notes, ts]];
+  bodyRows.forEach((r) => upsertRowIntoHistory(BODY_LOG_KEY, r));
 
   const payload = JSON.stringify({
     setRows: [],
     runRows: [],
     nutritionRows: [],
-    bodyRows
+    bodyRows,
   });
 
   const el = document.getElementById("bodySyncStatus");
   if (el) el.textContent = "Syncing…";
 
   try {
-    await fetch(SHEETS_URL,{
-      method:"POST",
-      mode:"no-cors",
-      headers:{
-        "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"
-      },
-      body:"payload="+encodeURIComponent(payload)
+    await fetch(SHEETS_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: "payload=" + encodeURIComponent(payload),
     });
 
-    if (el) el.textContent="✅ Body stats synced!";
-  } catch(err){
+    if (el) el.textContent = "✅ Body stats synced!";
+  } catch (err) {
     console.error(err);
-    if (el) el.textContent="❌ Sync failed.";
+    if (el) el.textContent = "❌ Sync failed.";
   }
 }
-
 window.syncBody = syncBody;
 
 // --------------------------
-// PROGRESS TAB (Summary + Charts)
+// PROGRESS TAB (SUMMARY + CHARTS)
 // --------------------------
 function loadChartJs() {
   return new Promise((resolve, reject) => {
@@ -906,7 +872,7 @@ function renderProgress() {
       </div>
 
       <p style="color:#666;font-size:13px;">
-        Tip: If charts look empty, do 1 sync for Sets/Run/Nutrition so history is stored.
+        Tip: If charts look empty, do 1 sync for Sets/Run/Nutrition/Body so history is stored.
       </p>
     </div>
   `;
@@ -919,19 +885,13 @@ function renderHabitSummary() {
   const dates = lastNDates(7);
   const keyFor = (date, k) => `nutri_${date}_${k}`;
 
-  let proteinYes = 0,
-    waterYes = 0,
-    vegYes = 0,
-    stepsYes = 0;
+  let proteinYes = 0, waterYes = 0, vegYes = 0, stepsYes = 0;
 
   dates.forEach((date) => {
-    if ((localStorage.getItem(keyFor(date, "protein")) || "No") === "Yes")
-      proteinYes++;
-    if ((localStorage.getItem(keyFor(date, "water")) || "No") === "Yes")
-      waterYes++;
+    if ((localStorage.getItem(keyFor(date, "protein")) || "No") === "Yes") proteinYes++;
+    if ((localStorage.getItem(keyFor(date, "water")) || "No") === "Yes") waterYes++;
     if ((localStorage.getItem(keyFor(date, "veg")) || "No") === "Yes") vegYes++;
-    if ((localStorage.getItem(keyFor(date, "steps")) || "No") === "Yes")
-      stepsYes++;
+    if ((localStorage.getItem(keyFor(date, "steps")) || "No") === "Yes") stepsYes++;
   });
 
   const el = document.getElementById("habitSummary");
@@ -955,7 +915,6 @@ async function renderCharts() {
 
   // ===== RUN PACE CHART =====
   const runRows = getLogArr(RUNS_LOG_KEY);
-  // RowID, Timestamp, Athlete, DistanceKm, Time, Effort, Notes, Pace
   const runLabels = runRows.map((r) => String(r[1] || "").slice(0, 10));
   const runPaceMin = runRows.map((r) => {
     const dist = parseFloat(r[3]);
@@ -971,19 +930,9 @@ async function renderCharts() {
       type: "line",
       data: {
         labels: runLabels,
-        datasets: [
-          {
-            label: "Pace (min/km)",
-            data: runPaceMin,
-            spanGaps: true,
-            tension: 0.25,
-          },
-        ],
+        datasets: [{ label: "Pace (min/km)", data: runPaceMin, spanGaps: true, tension: 0.25 }],
       },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: true } },
-      },
+      options: { responsive: true, plugins: { legend: { display: true } } },
     });
   }
 
@@ -998,14 +947,11 @@ async function renderCharts() {
     })
   );
 
-  exSelect.innerHTML = names
-    .map((n) => `<option value="${n}">${n}</option>`)
-    .join("");
+  exSelect.innerHTML = names.map((n) => `<option value="${n}">${n}</option>`).join("");
   exSelect.value = exSelect.value || names[0] || "";
 
   function drawStrength(exName) {
     const setRows = getLogArr(SETS_LOG_KEY);
-    // RowID, Timestamp, Athlete, DayName, Exercise, Set, TargetReps, Weight, Reps
 
     const map = new Map(); // date -> {sum,count}
     setRows.forEach((r) => {
@@ -1034,25 +980,16 @@ async function renderCharts() {
       type: "line",
       data: {
         labels: dates,
-        datasets: [
-          {
-            label: `${exName} avg weight (kg)`,
-            data: avg,
-            spanGaps: true,
-            tension: 0.25,
-          },
-        ],
+        datasets: [{ label: `${exName} avg weight (kg)`, data: avg, spanGaps: true, tension: 0.25 }],
       },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: true } },
-      },
+      options: { responsive: true, plugins: { legend: { display: true } } },
     });
   }
 
   drawStrength(exSelect.value);
   exSelect.addEventListener("change", () => drawStrength(exSelect.value));
 }
+window.renderProgress = renderProgress;
 
 // --------------------------
 // INITIAL LOAD
