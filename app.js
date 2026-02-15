@@ -89,11 +89,26 @@ function runKey(date, field) {
 function todayRunDate() {
   return todayDateStr();
 }
+function runDoneKey(date) {
+  return `run_${date}_done`;
+}
+
+function markRunDoneToday() {
+  const date = todayRunDate();
+  localStorage.setItem(runDoneKey(date), "1");
+}
+
 function isRunLoggedToday() {
   const date = todayRunDate();
+
+  // ✅ if we've already synced a run today, it's done (even if draft cleared)
+  if (localStorage.getItem(runDoneKey(date)) === "1") return true;
+
+  // otherwise, treat draft as "done" only if distance+time entered (not synced yet)
   const dist = (localStorage.getItem(runKey(date, "distance")) || "").trim();
   const time = (localStorage.getItem(runKey(date, "time")) || "").trim();
   return dist !== "" && time !== "";
+
 }
 function clearRunDraftForToday() {
   const date = todayRunDate();
@@ -519,12 +534,16 @@ async function syncRun() {
 
     if (el) el.textContent = "✅ Run synced!";
 
-    // Clear today’s draft so it DOES NOT carry over
-    clearRunDraftForToday();
+// ✅ Mark run as completed for today (THIS is what unlocks Finish Workout)
+markRunDoneToday();
 
-    // Refresh UI and unlock finish
-    renderRun();
-    renderToday();
+// Clear today’s draft so it DOES NOT carry over
+clearRunDraftForToday();
+
+// Refresh UI and unlock finish
+renderRun();
+renderToday();
+
   } catch (err) {
     console.error(err);
     if (el) el.textContent = "❌ Sync failed.";
