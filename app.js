@@ -2,7 +2,8 @@
 // ALANA TRAINING APP
 // WORKOUT ENGINE + LOGGING + SUGGESTIONS + COACH SYNC
 // RUNS + NUTRITION + BODY + LOCAL HISTORY + PROGRESS DASHBOARD
-// + RUN DAY: no weight/reps inputs, AND Finish Workout locked until run logged
+// RUN DAY: Clean UI + Finish locked until TODAY'S run is logged
+// RUN TAB: Date-based draft + clears after sync so it won't carry over
 // ==========================
 
 const SHEETS_URL =
@@ -80,24 +81,33 @@ function todayDateStr() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
-// --------------------------
-// RUN COMPLETION CHECK (LOCK FINISH BUTTON)
-// --------------------------
+// ==========================
+// RUN SESSION STATE (DATE-BASED)
+// ==========================
 function runKey(date, field) {
   return `run_${date}_${field}`;
 }
-
-// Run is "logged" ONLY if today's distance + time exist (prevents carryover)
-function isRunLogged() {
-  const date = todayDateStr();
-  const distance = (localStorage.getItem(runKey(date, "distance")) || "").trim();
+function todayRunDate() {
+  return todayDateStr();
+}
+// Run is completed ONLY if today's distance + time exist
+function isRunLoggedToday() {
+  const date = todayRunDate();
+  const dist = (localStorage.getItem(runKey(date, "distance")) || "").trim();
   const time = (localStorage.getItem(runKey(date, "time")) || "").trim();
-  return !!(distance && time);
+  return dist !== "" && time !== "";
+}
+// Clears today's draft so it doesn't carry to next run-required day
+function clearRunDraftForToday() {
+  const date = todayRunDate();
+  localStorage.removeItem(runKey(date, "distance"));
+  localStorage.removeItem(runKey(date, "time"));
+  localStorage.removeItem(runKey(date, "effort"));
+  localStorage.removeItem(runKey(date, "notes"));
 }
 
-
 // --------------------------
-// PROGRAM STRUCTURE
+// PROGRAM STRUCTURE (7-day cycle: 6 training + 1 active recovery)
 // --------------------------
 const program = [
   {
@@ -123,13 +133,12 @@ const program = [
   {
     name: "Run + Glutes",
     exercises: [
-      // Strength part first
       { name: "Hip Thrust", sets: 4, reps: 10 },
       { name: "Cable Kickbacks", sets: 3, reps: 15 },
       { name: "Step Ups", sets: 3, reps: 12 },
       { name: "Plank", sets: 3, reps: 30 },
-      // Special run marker so Today tab knows this is a run day
-      { name: "Run Session (log in Run tab)", sets: 1, reps: 1 },
+      // NOTE: Run is handled via Run tab (no sets/reps inputs)
+      { name: "Run Session", sets: 1, reps: 1 },
     ],
   },
   {
@@ -158,9 +167,7 @@ const program = [
   },
   {
     name: "Long Easy Run",
-    exercises: [
-      { name: "Run Session (log in Run tab)", sets: 1, reps: 1 },
-    ],
+    exercises: [{ name: "Run Session", sets: 1, reps: 1 }],
   },
 ];
 
@@ -187,7 +194,6 @@ function getCurrentDay() {
   }
   return parseInt(day, 10);
 }
-
 function nextDay() {
   let day = getCurrentDay();
   day = (day + 1) % program.length;
@@ -248,14 +254,14 @@ function getSuggestion(dayIndex, exIndex, targetReps) {
 }
 
 // --------------------------
-// TODAY TAB (RUN INSTRUCTIONS + LOCK FINISH)
+// TODAY TAB (clean run UI + lock finish if run required)
 // --------------------------
 function renderToday() {
   const dayIndex = getCurrentDay();
   const day = program[dayIndex];
 
-  const isRunDay = day.name.toLowerCase().includes("run");
-  const runComplete = isRunLogged();
+  const dayRequiresRun = day.name.toLowerCase().includes("run");
+  const runComplete = !dayRequiresRun || isRunLoggedToday();
 
   let html = `
     <div class="card">
@@ -265,32 +271,39 @@ function renderToday() {
 
   day.exercises.forEach((ex, exIndex) => {
     const isRunExercise =
-      ex.name.toLowerCase().includes("run session") ||
-      ex.name.toLowerCase().includes("comfortable") ||
       ex.name.toLowerCase().includes("run") ||
       day.name.toLowerCase().includes("run");
 
-    // ===== RUN SESSION UI (NO WEIGHT/REPS INPUTS) =====
-    // Only treat the explicit run marker/long-run exercise as the run block.
-    const isRunBlock = ex.name.toLowerCase().includes("run session") || ex.name.toLowerCase().includes("comfortable");
+    // ===== RUN SESSION UI (no weight/reps inputs) =====
+    if (isRunExercise) {
+      const runDone = isRunLoggedToday();
 
-    if (isRunBlock) {
       html += `
-        <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;">
-          <h4>${ex.name}</h4>
-          <p style="margin:8px 0;">🏃 <strong>Run Session</strong></p>
-          <p style="color:#555;margin:6px 0;">
-            Go to the <strong>Run</strong> tab and enter your distance + time.
-          </p>
-          <p style="color:#555;margin:6px 0;">
-            After you log it, come back here — the <strong>Finish Workout</strong> button will unlock.
-          </p>
-          <p style="color:${runComplete ? "green" : "#cc8800"}; margin:10px 0 0 0;">
-            ${runComplete ? "✅ Run logged — you can finish the workout." : "⚠️ Run not logged yet."}
-          </p>
+        <div style="
+          background:${runDone ? "#e8f7ec" : "#fff7e6"};
+          border:1px solid ${runDone ? "#7bd389" : "#ffc107"};
+          border-radius:12px;
+          padding:16px;
+          margin:12px 0;
+        ">
+          <h4 style="margin:0 0 8px 0;">🏃 Run Session</h4>
+
+          ${
+            runDone
+              ? `<p style="color:#2e7d32;margin:0 0 8px 0;">
+                   ✅ Run logged for today.
+                 </p>`
+              : `<p style="color:#a66b00;margin:0 0 8px 0;">
+                   Please log your run before finishing today's workout.
+                 </p>`
+          }
+
+          <button onclick="showTab('run')" style="padding:10px 14px; cursor:pointer;">
+            Go To Run Tab →
+          </button>
         </div>
       `;
-      return;
+      return; // skip strength inputs
     }
 
     // ===== NORMAL STRENGTH EXERCISES =====
@@ -333,24 +346,29 @@ function renderToday() {
     `;
   });
 
+  // ===== ACTIONS =====
   html += `
       <button onclick="syncToCoach()">Sync to Coach ✅</button>
       <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
 
       <button
         onclick="nextDay()"
-        style="margin-top:10px; opacity:${isRunDay && !runComplete ? 0.5 : 1};"
-        ${isRunDay && !runComplete ? "disabled" : ""}
+        ${runComplete ? "" : "disabled"}
+        style="
+          margin-top:10px;
+          opacity:${runComplete ? "1" : "0.5"};
+          cursor:${runComplete ? "pointer" : "not-allowed"};
+        "
       >
         Finish Workout ✅
       </button>
 
       ${
-        isRunDay && !runComplete
-          ? `<p style="color:#cc8800;margin-top:8px;">
-               ⚠️ Log your run in the Run tab first.
-             </p>`
-          : ""
+        runComplete
+          ? ""
+          : `<p style="color:#a66b00; margin-top:8px;">
+              🔒 Finish locked until today's run is logged.
+            </p>`
       }
 
       <p style="color:green;">✓ Auto saved</p>
@@ -376,9 +394,11 @@ async function syncToCoach() {
   const setRows = [];
 
   day.exercises.forEach((ex, exIndex) => {
-    // Skip run block rows (no sets to log)
-    const lowerName = ex.name.toLowerCase();
-    if (lowerName.includes("run session") || lowerName.includes("comfortable")) return;
+    // Skip Run Session from sets sync
+    const isRunExercise =
+      ex.name.toLowerCase().includes("run") ||
+      day.name.toLowerCase().includes("run");
+    if (isRunExercise) return;
 
     for (let s = 1; s <= ex.sets; s++) {
       const w = (localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-w`) || "").trim();
@@ -391,6 +411,7 @@ async function syncToCoach() {
     }
   });
 
+  // Save locally for Progress graphs/history
   setRows.forEach((r) => upsertRowIntoHistory(SETS_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -419,10 +440,10 @@ async function syncToCoach() {
 window.syncToCoach = syncToCoach;
 
 // --------------------------
-// RUN TAB (NO RE-RENDER TYPING)
+// RUN TAB (DATE-BASED DRAFT, smooth typing)
 // --------------------------
 function renderRun() {
-  const date = todayDateStr();
+  const date = todayRunDate();
 
   const distance = localStorage.getItem(runKey(date, "distance")) || "";
   const time = localStorage.getItem(runKey(date, "time")) || "";
@@ -468,7 +489,6 @@ function renderRun() {
     paceDisplay.textContent = pace || "--";
   }
 
-  // Save LIVE to today’s keys (no carryover to future run days)
   distInput.addEventListener("input", () => {
     localStorage.setItem(runKey(date, "distance"), distInput.value);
     updatePace();
@@ -490,16 +510,15 @@ function renderRun() {
   updatePace();
 }
 
-
 // --------------------------
-// RUN SYNC (HISTORY ROWS, NEVER OVERWRITE)
+// RUN SYNC (history rows, never overwrite)
 // Sheet tab: "Runs"
 // Headers recommended:
 // RowID | Timestamp | Athlete | DistanceKm | Time | Effort | Notes | Pace
 // --------------------------
 async function syncRun() {
   const ts = new Date().toISOString();
-  const date = todayDateStr();
+  const date = todayRunDate();
 
   const distance = (localStorage.getItem(runKey(date, "distance")) || "").trim();
   const time = (localStorage.getItem(runKey(date, "time")) || "").trim();
@@ -509,12 +528,12 @@ async function syncRun() {
   const pace = calculatePace(distance, time);
   if (!distance || !time) return;
 
-  // Unique RowID = every run keeps history
+  // UNIQUE RowID so each run is stored historically
   const rowId = `${ATHLETE}|RUN|${ts}`;
 
   const runRows = [[rowId, ts, ATHLETE, distance, time, effort, notes, pace]];
 
-  // Save locally for graphs/history
+  // Save locally for Progress graphs/history
   runRows.forEach((r) => upsertRowIntoHistory(RUNS_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -537,14 +556,10 @@ async function syncRun() {
 
     if (el) el.textContent = "✅ Run synced!";
 
-    // ✅ Reset the Run tab inputs AFTER sync so it doesn't carry over.
-    // (Keeps the saved run for today's date, but clears the form for next time she opens Run tab)
-    localStorage.removeItem(runKey(date, "distance"));
-    localStorage.removeItem(runKey(date, "time"));
-    localStorage.removeItem(runKey(date, "effort"));
-    localStorage.removeItem(runKey(date, "notes"));
+    // IMPORTANT: Clear today's draft so it doesn't carry over to the next run-required day
+    clearRunDraftForToday();
 
-    // Refresh Run tab + unlock Finish Workout if on run day
+    // Refresh UI and unlock Finish Workout immediately
     renderRun();
     renderToday();
   } catch (err) {
@@ -554,9 +569,8 @@ async function syncRun() {
 }
 window.syncRun = syncRun;
 
-
 // --------------------------
-// NUTRITION TAB (DAILY HABITS + STEPS)
+// NUTRITION TAB (daily habits + steps tracker)
 // --------------------------
 function renderNutrition() {
   const date = localStorage.getItem("nutri_date") || todayDateStr();
@@ -613,7 +627,7 @@ function renderNutrition() {
       </div>
 
       <div style="margin-top:12px;">
-        <label>Steps (optional number)</label>
+        <label>Steps (number)</label>
         <input id="nutriStepsCount" placeholder="e.g. 10350">
       </div>
 
@@ -686,6 +700,59 @@ function renderNutrition() {
 }
 
 // --------------------------
+// NUTRITION SYNC
+// Sheet tab: "Nutrition"
+// Headers recommended:
+// RowID | Date | Athlete | Protein | Water | Veg | Steps | StepsCount | Energy | Notes | Timestamp
+// --------------------------
+async function syncNutrition() {
+  const ts = new Date().toISOString();
+  const date = localStorage.getItem("nutri_date") || todayDateStr();
+  const key = (k) => `nutri_${date}_${k}`;
+
+  const protein = localStorage.getItem(key("protein")) || "No";
+  const water = localStorage.getItem(key("water")) || "No";
+  const veg = localStorage.getItem(key("veg")) || "No";
+  const steps = localStorage.getItem(key("steps")) || "No";
+  const stepsCount = (localStorage.getItem(key("stepsCount")) || "").trim();
+  const energy = (localStorage.getItem(key("energy")) || "").trim();
+  const notes = (localStorage.getItem(key("notes")) || "").trim();
+
+  // One row per day (edits update that day)
+  const rowId = `${ATHLETE}|NUTRITION|${date}`;
+
+  const nutritionRows = [[rowId, date, ATHLETE, protein, water, veg, steps, stepsCount, energy, notes, ts]];
+
+  // Save locally for Progress graphs/history
+  nutritionRows.forEach((r) => upsertRowIntoHistory(NUTRI_LOG_KEY, r));
+
+  const payload = JSON.stringify({
+    setRows: [],
+    runRows: [],
+    nutritionRows,
+    bodyRows: [],
+  });
+
+  const el = document.getElementById("nutriSyncStatus");
+  if (el) el.textContent = "Syncing…";
+
+  try {
+    await fetch(SHEETS_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: "payload=" + encodeURIComponent(payload),
+    });
+
+    if (el) el.textContent = "✅ Nutrition synced!";
+  } catch (err) {
+    console.error(err);
+    if (el) el.textContent = "❌ Sync failed.";
+  }
+}
+window.syncNutrition = syncNutrition;
+
+// --------------------------
 // BODY TAB
 // --------------------------
 function renderBody() {
@@ -747,58 +814,6 @@ function renderBody() {
 }
 
 // --------------------------
-// NUTRITION SYNC
-// Sheet tab: "Nutrition"
-// Headers recommended:
-// RowID | Date | Athlete | Protein | Water | Veg | Steps | StepsCount | Energy | Notes | Timestamp
-// --------------------------
-async function syncNutrition() {
-  const ts = new Date().toISOString();
-  const date = localStorage.getItem("nutri_date") || todayDateStr();
-  const key = (k) => `nutri_${date}_${k}`;
-
-  const protein = localStorage.getItem(key("protein")) || "No";
-  const water = localStorage.getItem(key("water")) || "No";
-  const veg = localStorage.getItem(key("veg")) || "No";
-  const steps = localStorage.getItem(key("steps")) || "No";
-  const stepsCount = (localStorage.getItem(key("stepsCount")) || "").trim();
-  const energy = (localStorage.getItem(key("energy")) || "").trim();
-  const notes = (localStorage.getItem(key("notes")) || "").trim();
-
-  const rowId = `${ATHLETE}|NUTRITION|${date}`;
-
-  const nutritionRows = [[
-    rowId, date, ATHLETE, protein, water, veg, steps, stepsCount, energy, notes, ts
-  ]];
-
-  nutritionRows.forEach((r) => upsertRowIntoHistory(NUTRI_LOG_KEY, r));
-
-  const payload = JSON.stringify({
-    setRows: [],
-    runRows: [],
-    nutritionRows,
-    bodyRows: [],
-  });
-
-  const el = document.getElementById("nutriSyncStatus");
-  if (el) el.textContent = "Syncing…";
-
-  try {
-    await fetch(SHEETS_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-      body: "payload=" + encodeURIComponent(payload),
-    });
-    if (el) el.textContent = "✅ Nutrition synced!";
-  } catch (err) {
-    console.error(err);
-    if (el) el.textContent = "❌ Sync failed.";
-  }
-}
-window.syncNutrition = syncNutrition;
-
-// --------------------------
 // BODY SYNC
 // Sheet tab: "Body"
 // Headers recommended:
@@ -816,9 +831,12 @@ async function syncBody() {
 
   if (!weight && !waist && !hips) return;
 
+  // one row per day (editable)
   const rowId = `${ATHLETE}|BODY|${date}`;
 
   const bodyRows = [[rowId, date, ATHLETE, weight, waist, hips, notes, ts]];
+
+  // save locally for graphs
   bodyRows.forEach((r) => upsertRowIntoHistory(BODY_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -848,7 +866,7 @@ async function syncBody() {
 window.syncBody = syncBody;
 
 // --------------------------
-// PROGRESS TAB (SUMMARY + CHARTS)
+// PROGRESS TAB (Summary + Charts)
 // --------------------------
 function loadChartJs() {
   return new Promise((resolve, reject) => {
@@ -874,6 +892,7 @@ function lastNDates(n) {
 
 let runChartInst = null;
 let strengthChartInst = null;
+let bodyChartInst = null;
 
 function renderProgress() {
   app.innerHTML = `
@@ -897,6 +916,11 @@ function renderProgress() {
         <canvas id="strengthChart" height="180" style="margin-top:10px;"></canvas>
       </div>
 
+      <div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
+        <h3 style="margin:0 0 8px 0;">Bodyweight Trend</h3>
+        <canvas id="bodyChart" height="180"></canvas>
+      </div>
+
       <p style="color:#666;font-size:13px;">
         Tip: If charts look empty, do 1 sync for Sets/Run/Nutrition/Body so history is stored.
       </p>
@@ -911,7 +935,10 @@ function renderHabitSummary() {
   const dates = lastNDates(7);
   const keyFor = (date, k) => `nutri_${date}_${k}`;
 
-  let proteinYes = 0, waterYes = 0, vegYes = 0, stepsYes = 0;
+  let proteinYes = 0,
+    waterYes = 0,
+    vegYes = 0,
+    stepsYes = 0;
 
   dates.forEach((date) => {
     if ((localStorage.getItem(keyFor(date, "protein")) || "No") === "Yes") proteinYes++;
@@ -941,6 +968,7 @@ async function renderCharts() {
 
   // ===== RUN PACE CHART =====
   const runRows = getLogArr(RUNS_LOG_KEY);
+  // RowID, Timestamp, Athlete, DistanceKm, Time, Effort, Notes, Pace
   const runLabels = runRows.map((r) => String(r[1] || "").slice(0, 10));
   const runPaceMin = runRows.map((r) => {
     const dist = parseFloat(r[3]);
@@ -969,7 +997,8 @@ async function renderCharts() {
   const names = [];
   program.forEach((day) =>
     day.exercises.forEach((ex) => {
-      if (!names.includes(ex.name) && ex.sets > 1) names.push(ex.name);
+      // only plot multi-set strength lifts
+      if (!names.includes(ex.name) && ex.sets > 1 && !ex.name.toLowerCase().includes("run")) names.push(ex.name);
     })
   );
 
@@ -978,6 +1007,7 @@ async function renderCharts() {
 
   function drawStrength(exName) {
     const setRows = getLogArr(SETS_LOG_KEY);
+    // RowID, Timestamp, Athlete, DayName, Exercise, Set, TargetReps, Weight, Reps
 
     const map = new Map(); // date -> {sum,count}
     setRows.forEach((r) => {
@@ -1014,8 +1044,26 @@ async function renderCharts() {
 
   drawStrength(exSelect.value);
   exSelect.addEventListener("change", () => drawStrength(exSelect.value));
+
+  // ===== BODYWEIGHT CHART =====
+  const bodyRows = getLogArr(BODY_LOG_KEY);
+  // RowID | Date | Athlete | Weight | Waist | Hips | Notes | Timestamp
+  const bLabels = bodyRows.map((r) => String(r[1] || ""));
+  const bWeight = bodyRows.map((r) => {
+    const w = parseFloat(r[3]);
+    return Number.isFinite(w) ? w : null;
+  });
+
+  const bCtx = document.getElementById("bodyChart")?.getContext("2d");
+  if (bCtx) {
+    if (bodyChartInst) bodyChartInst.destroy();
+    bodyChartInst = new Chart(bCtx, {
+      type: "line",
+      data: { labels: bLabels, datasets: [{ label: "Bodyweight (kg)", data: bWeight, spanGaps: true, tension: 0.25 }] },
+      options: { responsive: true, plugins: { legend: { display: true } } },
+    });
+  }
 }
-window.renderProgress = renderProgress;
 
 // --------------------------
 // INITIAL LOAD
