@@ -7,6 +7,18 @@
 // ==========================
 
 // ===== CONFIG =====
+import {
+  getLogArr,
+  setLogArr,
+  upsertRowIntoHistory
+} from "./lib/storage.js";
+
+import {
+  todayDateStr,
+  timeToMinutes,
+  calculatePace
+} from "./lib/date.js";
+
 const SHEETS_URL =
   "https://script.google.com/macros/s/AKfycbw5jJ4Zk0TtCp9etm2ImxxsSqsxiLoCxZ_U50tZwE1LdqPbkw3hEan8r1YgUCgs7vJaTA/exec";
 
@@ -29,60 +41,6 @@ const RUNS_LOG_KEY = "history_runs";       // run rows
 const NUTRI_LOG_KEY = "history_nutrition"; // nutrition rows
 const BODY_LOG_KEY = "history_body";       // body rows
 
-// ==========================
-// STORAGE HELPERS
-// ==========================
-function getLogArr(key) {
-  return JSON.parse(localStorage.getItem(key) || "[]");
-}
-function setLogArr(key, arr) {
-  localStorage.setItem(key, JSON.stringify(arr));
-}
-function upsertRowIntoHistory(storageKey, row) {
-  const arr = getLogArr(storageKey);
-  const rowId = String(row[0] || "");
-  if (!rowId) return;
-
-  const idx = arr.findIndex((r) => String(r[0]) === rowId);
-  if (idx >= 0) arr[idx] = row;
-  else arr.push(row);
-
-  setLogArr(storageKey, arr);
-}
-
-// ==========================
-// DATE/TIME HELPERS
-// ==========================
-function todayDateStr() {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-}
-
-function timeToMinutes(timeStr) {
-  const s = String(timeStr || "").trim();
-  if (!s) return null;
-
-  if (s.includes(":")) {
-    const parts = s.split(":").map((p) => p.trim());
-    const mins = parseFloat(parts[0]);
-    const secs = parseFloat(parts[1] || "0");
-    if (!Number.isFinite(mins) || !Number.isFinite(secs)) return null;
-    return mins + secs / 60;
-  }
-
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : null;
-}
-
-function calculatePace(distance, timeStr) {
-  const dist = parseFloat(distance);
-  const mins = timeToMinutes(timeStr);
-  if (!Number.isFinite(dist) || dist <= 0 || mins == null) return "";
-
-  const pace = mins / dist;
-  const m = Math.floor(pace);
-  const s = Math.round((pace - m) * 60);
-  return `${m}:${String(s).padStart(2, "0")} /km`;
-}
 
 // ==========================
 // PROGRAM (6 DAYS + 1 ACTIVE REST)
